@@ -1,0 +1,24 @@
+{
+    "name": "lee/validator",
+    "description": "PHP参数校验组件",
+    "keywords": ["php validator", "parameters", "laravel" ,"fangstar"],
+    "homepage": "https://github.com/xiaoyao-work/lee-validator",
+    "license": "MIT",
+    "type":"project",
+    "authors": [
+        {
+            "name": "Xiao Yao",
+            "homepage": "https://github.com/xiaoyao-work",
+            "email": "xiaoyao.working@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": ">=5.6.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Lee\\Validator\\": ""
+        }
+    }
+}
