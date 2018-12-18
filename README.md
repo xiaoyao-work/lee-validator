@@ -26,7 +26,7 @@ Via Composer
 ``` json
 "require": {
     ……
-    "lee/lee-validator": "1.*",
+    "lee/validator": "1.*",
     ……
 },
 
