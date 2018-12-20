@@ -2,63 +2,8 @@
 namespace Lee\Validator;
 
 class Validator {
-    /**
-     * 参数校验是否不通过
-     *
-     * @var bool
-     */
-    private static $has_fails = false;
 
-    /**
-     * 校验不通过时提示的文案
-     *
-     * @var string
-     */
-    private static $error_msg = "";
-
-    /**
-     * 参数校验后被处理过的输入参数
-     *
-     * @var array
-     */
-    private static $data = [];
-
-    /**
-     * 参数校验是否不通过
-     *
-     * @return  bool
-     */
-    public static function has_fails() {
-        return self::$has_fails;
-    }
-
-    /**
-     * 获取提示的文案
-     *
-     * @return  string
-     */
-    public static function error_msg() {
-        return self::$error_msg;
-    }
-
-    /**
-     * 获取被处理过的请求参数
-     *
-     * @return  array
-     */
-    public static function data() {
-        return self::$data;
-    }
-
-    /**
-     * 初始化数据
-     *
-     * 组件对外提供静态方法，目的是调用方便！而使用make方法则会初始化成员变量
-     */
-    private static function init() {
-        self::$has_fails = false;
-        self::$error_msg = "";
-    }
+    private static $validator = '';
 
     /**
      * 定义参数校验规则并进行处理
@@ -68,17 +13,12 @@ class Validator {
      * @param   array   $messages   自定义文案
      */
     public static function make(array $data, array $rules, array $messages = []) {
-        self::init();
-        $validator = new Core\Validator($data, $rules, $messages);
-        $validator->dissectRuleStr();
-
-        $validator->check();
-        $validator->toType();
-        $validator->toAlias();
-        self::$has_fails = $validator->has_fails();
-        self::$error_msg = $validator->err_msg();
-
-        self::$data = $validator->data();
+        self::lang($messages);
+        self::$validator = new Core\Validator($data, $rules, $messages);
+        self::dissectRuleStr();
+        self::check();
+        self::toType();
+        self::toAlias();
     }
 
     /**
@@ -87,5 +27,13 @@ class Validator {
      */
     public static function lang($lang) {
         Core\Lang::registerLang($lang);
+    }
+
+    public static function getHandler() {
+        return self::$validator;
+    }
+
+    public static function __callStatic($name, $arguments) {
+        call_user_func_array([self::$validator, $name], $arguments);
     }
 }

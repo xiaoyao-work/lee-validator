@@ -3,24 +3,29 @@
 namespace Lee\Validator\Core;
 
 class Validator {
-    private $data;
-    private $rules;
-    private $messages;
-    private $scale        = 8;
-    private $rules_data   = [];
-    private $alias        = [];
-    private $to_type      = [];
-    private $array_str    = [];
-    private $float        = [];
-    private $files        = [];
-    private $err_msg      = "";
-    private $has_fails    = false;
-    private $to_type_keys = [
+    protected $data;
+    protected $rules;
+    protected $messages;
+    protected $scale        = 8;
+    protected $rules_data   = [];
+    protected $alias        = [];
+    protected $to_type      = [];
+    protected $array_str    = [];
+    protected $float        = [];
+    protected $files        = [];
+    protected $errors       = [];
+    protected $fails        = false;
+    protected $to_type_keys = [
         'string', 'boolean', 'integer', 'float', 'array', 'object',
     ];
 
+
+    // check rule : about exists and not null
+    protected $implicitRules = [
+        'file_exists', 'file_type_in', 'file_max', 'file_min', 'file_size_between', 'present', 'required_with', 'required_with_all', 'required_without', 'required_without_all', 'same', 'different',
+    ];
     // used on function : check_to_type 、toType
-    private $to_type_keys_mul = [
+    protected $to_type_keys_mul = [
         'str_array', 'scale',
     ];
 
@@ -30,12 +35,12 @@ class Validator {
         $this->messages = $messages;
     }
 
-    public function has_fails() {
-        return $this->has_fails;
+    public function fails() {
+        return $this->fails;
     }
 
-    public function err_msg() {
-        return $this->err_msg;
+    public function errors() {
+        return $this->errors;
     }
 
     public function data() {
@@ -52,12 +57,7 @@ class Validator {
 
     public function check() {
         foreach ($this->rules_data as $attribute => $v_d) {
-            // check rule : about exists and not null
-            $file_keys = [
-                'file_exists', 'file_type_in', 'file_max', 'file_min', 'file_size_between',
-                'present', 'required_with', 'required_with_all', 'required_without', 'required_without_all', 'same', 'different',
-            ];
-            foreach ($file_keys as $key) {
+            foreach ($this->implicitRules as $key) {
                 if (!isset($v_d[$key])) {
                     continue;
                 }
@@ -191,7 +191,7 @@ class Validator {
     }
 
     public function toType() {
-        if ($this->has_fails) {
+        if ($this->fails) {
             return false;
         }
         foreach ($this->to_type as $key => $type_data) {
@@ -232,7 +232,7 @@ class Validator {
     }
 
     public function toAlias() {
-        if ($this->has_fails) {
+        if ($this->fails) {
             return false;
         }
 
@@ -247,14 +247,14 @@ class Validator {
         return true;
     }
 
-    private function _check_not_null($attribute) {
+    protected function _check_not_null($attribute) {
         if (isset($this->data[$attribute]) && $this->data[$attribute] !== "" && $this->data[$attribute] !== []) {
             return true;
         }
         return false;
     }
 
-    private function getFile($attribute) {
+    protected function getFile($attribute) {
         if (array_key_exists($attribute, $this->files)) {
             return $this->files[$attribute];
         }
@@ -270,344 +270,338 @@ class Validator {
         return $this->files[$attribute];
     }
 
-    private function setMsg_one($rule, $attribute) {
-        $this->has_fails = true;
-        $custom_key      = $attribute . "." . $rule;
+    protected function set_error_message() {
+        $params    = func_get_args();
+        $rule      = $params[0];
+        $attribute = $params[1];
 
+        $this->fails = true;
+        $custom_key  = $attribute . "." . $rule;
         if (array_key_exists($custom_key, $this->messages)) {
-            $this->err_msg = $this->messages[$custom_key];
+            $this->errors[$attribute] = $this->messages[$custom_key];
         } else {
-            $this->err_msg = str_replace('{attribute}', $attribute, Lang::lang($rule));
+            switch (func_num_args()) {
+            case 2:
+                $this->errors[$attribute] = str_replace('{attribute}', $attribute, Lang::lang($rule));
+                break;
+            case 3:
+                $replace = [
+                    '{attribute}' => $attribute,
+                    '{param_1}'   => $params[2],
+                ];
+                $this->errors[$attribute] = strtr(Lang::lang($rule), $replace);
+                break;
+            case 4:
+                $replace = [
+                    '{attribute}' => $attribute,
+                    '{param_1}'   => $params[2],
+                    '{param_2}'   => $params[3],
+                ];
+                $this->errors[$attribute] = strtr(Lang::lang($rule), $replace);
+                break;
+            default:
+                throw new \BadFunctionCallException("set_error_message 只允许2-4个参数");
+                break;
+            }
         }
     }
 
-    private function setMsg_two($rule, $attribute, $param_1) {
-        $this->has_fails = true;
-        $custom_key      = $attribute . "." . $rule;
-
-        if (array_key_exists($custom_key, $this->messages)) {
-            $this->err_msg = $this->messages[$custom_key];
-        } else {
-            $replace = [
-                '{attribute}' => $attribute,
-                '{param_1}'   => $param_1,
-            ];
-            $this->err_msg = strtr(Lang::lang($rule), $replace);
-        }
-    }
-
-    private function setMsg_three($rule, $attribute, $param_1, $param_2) {
-        $this->has_fails = true;
-        $custom_key      = $attribute . "." . $rule;
-
-        if (array_key_exists($custom_key, $this->messages)) {
-            $this->err_msg = $this->messages[$custom_key];
-        } else {
-            $replace = [
-                '{attribute}' => $attribute,
-                '{param_1}'   => $param_1,
-                '{param_2}'   => $param_2,
-            ];
-            $this->err_msg = strtr(Lang::lang($rule), $replace);
-        }
-    }
-
-    private function check_present($attribute) {
+    protected function check_present($attribute) {
         if (!$this->_check_not_null($attribute)) {
-            $this->setMsg_one('present', $attribute);
+            $this->set_error_message('present', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_alpha($attribute, $value) {
+    protected function check_alpha($attribute, $value) {
         $rv = preg_match("/^[a-zA-Z]*$/", strval($value));
         if ($rv == 0) {
-            $this->setMsg_one('alpha', $attribute);
+            $this->set_error_message('alpha', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_num($attribute, $value) {
+    protected function check_num($attribute, $value) {
         $rv = preg_match("/^[0-9]*$/", strval($value));
         if ($rv == 0) {
-            $this->setMsg_one('num', $attribute);
+            $this->set_error_message('num', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_alpha_num($attribute, $value) {
+    protected function check_alpha_num($attribute, $value) {
         $rv = preg_match("/^[0-9A-Za-z]*$/", strval($value));
         if ($rv == 0) {
-            $this->setMsg_one('alpha_num', $attribute);
+            $this->set_error_message('alpha_num', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_alpha_dish($attribute, $value) {
+    protected function check_alpha_dish($attribute, $value) {
         $rv = preg_match("/^[0-9A-Za-z_-]*$/", strval($value));
         if ($rv == 0) {
-            $this->setMsg_one('alpha_dish', $attribute);
+            $this->set_error_message('alpha_dish', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_var($attribute, $value) {
+    protected function check_var($attribute, $value) {
         $rv = preg_match("/^[A-Za-z_]{1}[0-9A-Za-z_]*$/", strval($value));
         if ($rv == 0) {
-            $this->setMsg_one('var', $attribute);
+            $this->set_error_message('var', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_ip($attribute, $value) {
+    protected function check_ip($attribute, $value) {
         if (!filter_var(strval($value), FILTER_VALIDATE_IP)) {
-            $this->setMsg_one('ip', $attribute);
+            $this->set_error_message('ip', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_url($attribute, $value) {
+    protected function check_url($attribute, $value) {
         if (!filter_var(strval($value), FILTER_VALIDATE_URL)) {
-            $this->setMsg_one('url', $attribute);
+            $this->set_error_message('url', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_email($attribute, $value) {
+    protected function check_email($attribute, $value) {
         if (!filter_var(strval($value), FILTER_VALIDATE_EMAIL)) {
-            $this->setMsg_one('email', $attribute);
+            $this->set_error_message('email', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_mobile($attribute, $value) {
+    protected function check_mobile($attribute, $value) {
         $rv = preg_match("/^1[3-8]{1}[0-9]{9}$/", strval($value));
         if ($rv == 0) {
-            $this->setMsg_one('mobile', $attribute);
+            $this->set_error_message('mobile', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_json($attribute, $value) {
+    protected function check_json($attribute, $value) {
         if (json_decode(strval($value), true) == []) {
-            $this->setMsg_one('json', $attribute);
+            $this->set_error_message('json', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_timestamp($attribute, $value) {
+    protected function check_timestamp($attribute, $value) {
         $value = strval($value);
         $rv    = preg_match("/^[0-9]*$/", $value);
         if ($rv == 0) {
-            $this->setMsg_one('timestamp', $attribute);
+            $this->set_error_message('timestamp', $attribute);
             return false;
         }
 
         @$timestamp = date("Y-m-d H:i:s", $value);
         if ($timestamp == false) {
-            $this->setMsg_one('timestamp', $attribute);
+            $this->set_error_message('timestamp', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_date_format($attribute, $value, $rule_data) {
+    protected function check_date_format($attribute, $value, $rule_data) {
         $value      = strval($value);
         @$timestamp = strtotime($value);
         if ($timestamp == false) {
-            $this->setMsg_one('date_format', $attribute);
+            $this->set_error_message('date_format', $attribute);
             return false;
         }
 
         @$date = date($rule_data, $timestamp);
         if ($date == false) {
-            $this->setMsg_one('date_format', $attribute);
+            $this->set_error_message('date_format', $attribute);
             return false;
         }
 
         if ($date != $value) {
-            $this->setMsg_one('date_format', $attribute);
+            $this->set_error_message('date_format', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_regex($attribute, $value, $rule_data) {
+    protected function check_regex($attribute, $value, $rule_data) {
         $rv = preg_match($rule_data, strval($value));
         if ($rv == 0) {
-            $this->setMsg_one('regex', $attribute);
+            $this->set_error_message('regex', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_string($attribute, $value) {
+    protected function check_string($attribute, $value) {
         if (!is_string($value)) {
-            $this->setMsg_one('string', $attribute);
+            $this->set_error_message('string', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_boolean($attribute, $value) {
+    protected function check_boolean($attribute, $value) {
         if (!is_bool($value)) {
-            $this->setMsg_one('boolean', $attribute);
+            $this->set_error_message('boolean', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_integer($attribute, $value) {
+    protected function check_integer($attribute, $value) {
         if (!is_int($value)) {
-            $this->setMsg_one('integer', $attribute);
+            $this->set_error_message('integer', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_float($attribute, $value) {
+    protected function check_float($attribute, $value) {
         if (!is_float($value)) {
-            $this->setMsg_one('float', $attribute);
+            $this->set_error_message('float', $attribute);
             return false;
         }
         $this->float[$attribute] = $value;
         return true;
     }
 
-    private function check_array($attribute, $value) {
+    protected function check_array($attribute, $value) {
         if (!is_array($value)) {
-            $this->setMsg_one('array', $attribute);
+            $this->set_error_message('array', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_object($attribute, $value) {
+    protected function check_object($attribute, $value) {
         if (!is_object($value)) {
-            $this->setMsg_one('object', $attribute);
+            $this->set_error_message('object', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_object_of($attribute, $value, $rule_data) {
+    protected function check_object_of($attribute, $value, $rule_data) {
         if (!is_object($value)) {
-            $this->setMsg_one('object', $attribute);
+            $this->set_error_message('object', $attribute);
             return false;
         }
 
         if (get_class($value) != $rule_data) {
-            $this->setMsg_two('object_of', $attribute, $rule_data);
+            $this->set_error_message('object_of', $attribute, $rule_data);
             return false;
         }
         return true;
     }
 
-    private function check_integer_str($attribute, $value) {
+    protected function check_integer_str($attribute, $value) {
         $rv = preg_match("/^[-]?[1-9]{1}[0-9]*$/", strval($value));
         if ($rv == 0) {
-            $this->setMsg_one('integer_str', $attribute);
+            $this->set_error_message('integer_str', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_float_str($attribute, $value) {
+    protected function check_float_str($attribute, $value) {
         $value = strval($value);
         $rv    = preg_match("/^[-]?(([1-9]{1}[0-9]*\.[0-9]*)|(0\.[0-9]+))$/", strval($value));
         if ($rv == 0) {
-            $this->setMsg_one('float_str', $attribute);
+            $this->set_error_message('float_str', $attribute);
             return false;
         }
         $this->float[$attribute] = $value;
         return true;
     }
 
-    private function check_numeric_str($attribute, $value) {
+    protected function check_numeric_str($attribute, $value) {
         if (!is_numeric($value)) {
-            $this->setMsg_one('numeric_str', $attribute);
+            $this->set_error_message('numeric_str', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_array_str($attribute, $value) {
+    protected function check_array_str($attribute, $value) {
         $value = strval($value);
         $len   = strlen($value);
         if ($len < 3) {
-            $this->setMsg_one('array_str', $attribute);
+            $this->set_error_message('array_str', $attribute);
             return false;
         }
         if ($value[0] != "[" || $value[$len - 1] != "]") {
-            $this->setMsg_one('array_str', $attribute);
+            $this->set_error_message('array_str', $attribute);
             return false;
         }
         $this->array_str[$attribute] = substr($value, 1, $len - 2);
         return true;
     }
 
-    private function check_max($attribute, $value, $rule_data) {
+    protected function check_max($attribute, $value, $rule_data) {
         $result = bcsub($rule_data, $value);
         $rv     = preg_match("/^-.*$/", $result);
         if ($rv == 1) {
-            $this->setMsg_one('max', $attribute);
+            $this->set_error_message('max', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_length_max($attribute, $value, $rule_data) {
+    protected function check_length_max($attribute, $value, $rule_data) {
         $value = mb_strlen(strval($value));
         $len   = intval($rule_data);
         if ($value > $len) {
-            $this->setMsg_one('length_max', $attribute);
+            $this->set_error_message('length_max', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_min($attribute, $value, $rule_data) {
+    protected function check_min($attribute, $value, $rule_data) {
         $result = bcsub($value, $rule_data);
         $rv     = preg_match("/^-.*$/", $result);
         if ($rv == 1) {
-            $this->setMsg_one('min', $attribute);
+            $this->set_error_message('min', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_length_min($attribute, $value, $rule_data) {
+    protected function check_length_min($attribute, $value, $rule_data) {
         $value = mb_strlen(strval($value));
         $len   = intval($rule_data);
         if ($value < $len) {
-            $this->setMsg_one('length_min', $attribute);
+            $this->set_error_message('length_min', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_length($attribute, $value, $rule_data) {
+    protected function check_length($attribute, $value, $rule_data) {
         $value = mb_strlen(strval($value));
         $len   = intval($rule_data);
         if ($len != $value) {
-            $this->setMsg_two('length', $attribute, $len);
+            $this->set_error_message('length', $attribute, $len);
             return false;
         }
         return true;
     }
 
-    private function check_between($attribute, $value, $rule_data) {
+    protected function check_between($attribute, $value, $rule_data) {
         $div_arr = explode(',', $rule_data);
         if (count($div_arr) != 2) {
             throw new \Exception("Illegal PHPValidator expression: The 'between' rule's value must like ' min , max '");
@@ -623,20 +617,20 @@ class Validator {
         $max_result = bcsub($v2, $value);
         $rv         = preg_match("/^-.*$/", $max_result);
         if ($rv == 1) {
-            $this->setMsg_three('between', $attribute, $v1, $v2);
+            $this->set_error_message('between', $attribute, $v1, $v2);
             return false;
         }
 
         $min_result = bcsub($value, $v1);
         $rv         = preg_match("/^-.*$/", $min_result);
         if ($rv == 1) {
-            $this->setMsg_three('between', $attribute, $v1, $v2);
+            $this->set_error_message('between', $attribute, $v1, $v2);
             return false;
         }
         return true;
     }
 
-    private function check_length_between($attribute, $value, $rule_data) {
+    protected function check_length_between($attribute, $value, $rule_data) {
         $div_arr = explode(',', $rule_data);
         if (count($div_arr) != 2) {
             throw new \Exception("Illegal PHPValidator expression: The 'length_between' rule's value must like ' min , max '");
@@ -651,70 +645,70 @@ class Validator {
 
         $len = mb_strlen($value);
         if ($len < $v1 || $len > $v2) {
-            $this->setMsg_three('length_between', $attribute, $v1, $v2);
+            $this->set_error_message('length_between', $attribute, $v1, $v2);
             return false;
         }
         return true;
     }
 
-    private function check_in($attribute, $value, $rule_data) {
+    protected function check_in($attribute, $value, $rule_data) {
         $div_arr = explode(',', $rule_data);
         if (!in_array($value, $div_arr)) {
-            $this->setMsg_two('in', $attribute, $rule_data);
+            $this->set_error_message('in', $attribute, $rule_data);
             return false;
         }
         return true;
     }
 
-    private function check_not_in($attribute, $value, $rule_data) {
+    protected function check_not_in($attribute, $value, $rule_data) {
         $div_arr = explode(',', $rule_data);
         if (in_array($value, $div_arr)) {
-            $this->setMsg_two('not_in', $attribute, $rule_data);
+            $this->set_error_message('not_in', $attribute, $rule_data);
             return false;
         }
         return true;
     }
 
-    private function check_filled($attribute, $value) {
+    protected function check_filled($attribute, $value) {
         if (empty($value)) {
-            $this->setMsg_one('filled', $attribute);
+            $this->set_error_message('filled', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_distinct($attribute, $value) {
+    protected function check_distinct($attribute, $value) {
         if (!is_array($value)) {
             throw new \Exception("Illegal PHPValidator expression: Under the 'distinct' rule, the value must be a array");
         }
         if (count($value) != array_unique($value)) {
-            $this->setMsg_one('distinct', $attribute);
+            $this->set_error_message('distinct', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_different($attribute, $rule_data) {
+    protected function check_different($attribute, $rule_data) {
         $v1_exists = array_key_exists($rule_data, $this->data) ? $this->data[$rule_data] : null;
         $v2_exists = array_key_exists($attribute, $this->data) ? $this->data[$attribute] : null;
         if ($v1_exists === $v2_exists) {
-            $this->setMsg_two('different', $attribute, $rule_data);
+            $this->set_error_message('different', $attribute, $rule_data);
             return false;
         }
         return true;
     }
 
-    private function check_same($attribute, $rule_data) {
+    protected function check_same($attribute, $rule_data) {
         $v1_exists = array_key_exists($rule_data, $this->data) ? $this->data[$rule_data] : null;
         $v2_exists = array_key_exists($attribute, $this->data) ? $this->data[$attribute] : null;
         if ($v1_exists !== $v2_exists) {
-            $this->setMsg_two('same', $attribute, $rule_data);
+            $this->set_error_message('same', $attribute, $rule_data);
             return false;
         }
         return true;
     }
 
-    private function check_required_with($attribute, $rule_data) {
+    protected function check_required_with($attribute, $rule_data) {
         $div_arr      = explode(',', $rule_data);
         $we_need_you  = false;
         $who_not_null = "";
@@ -727,13 +721,13 @@ class Validator {
         }
 
         if ($we_need_you && !$this->_check_not_null($attribute)) {
-            $this->setMsg_two('required_with', $attribute, $who_not_null);
+            $this->set_error_message('required_with', $attribute, $who_not_null);
             return false;
         }
         return true;
     }
 
-    private function check_required_with_all($attribute, $rule_data) {
+    protected function check_required_with_all($attribute, $rule_data) {
         $div_arr     = explode(',', $rule_data);
         $we_need_you = true;
         foreach ($div_arr as $e_key) {
@@ -743,13 +737,13 @@ class Validator {
             }
         }
         if ($we_need_you && !$this->_check_not_null($attribute)) {
-            $this->setMsg_two('required_with_all', $attribute, $rule_data);
+            $this->set_error_message('required_with_all', $attribute, $rule_data);
             return false;
         }
         return true;
     }
 
-    private function check_required_without($attribute, $rule_data) {
+    protected function check_required_without($attribute, $rule_data) {
         $div_arr      = explode(',', $rule_data);
         $we_need_you  = false;
         $who_not_null = "";
@@ -761,13 +755,13 @@ class Validator {
             }
         }
         if ($we_need_you && !$this->_check_not_null($attribute)) {
-            $this->setMsg_two('required_without', $attribute, $who_not_null);
+            $this->set_error_message('required_without', $attribute, $who_not_null);
             return false;
         }
         return true;
     }
 
-    private function check_required_without_all($attribute, $rule_data) {
+    protected function check_required_without_all($attribute, $rule_data) {
         $div_arr     = explode(',', $rule_data);
         $we_need_you = true;
         foreach ($div_arr as $e_key) {
@@ -777,18 +771,18 @@ class Validator {
             }
         }
         if ($we_need_you && !$this->_check_not_null($attribute)) {
-            $this->setMsg_two('required_without_all', $attribute, $rule_data);
+            $this->set_error_message('required_without_all', $attribute, $rule_data);
             return false;
         }
         return true;
     }
 
-    private function add_alias($attribute, $rule_data) {
+    protected function add_alias($attribute, $rule_data) {
         $this->alias[$attribute] = $rule_data;
         return true;
     }
 
-    private function check_to_type($attribute, $rule_data) {
+    protected function check_to_type($attribute, $rule_data) {
         if (!in_array($rule_data, $this->to_type_keys)) {
             $has_err = true;
             $div_arr = explode(':', $rule_data);
@@ -820,24 +814,24 @@ class Validator {
         return true;
     }
 
-    private function check_file_exists($attribute) {
+    protected function check_file_exists($attribute) {
         $file = $this->getFile($attribute);
         if ($file == []) {
-            $this->setMsg_one('file_exists', $attribute);
+            $this->set_error_message('file_exists', $attribute);
             return false;
         }
         $path = $file['tmp_name'];
         if (!file_exists($path)) {
-            $this->setMsg_one('file_exists', $attribute);
+            $this->set_error_message('file_exists', $attribute);
             return false;
         }
         return true;
     }
 
-    private function check_file_type_in($attribute, $rule_data) {
+    protected function check_file_type_in($attribute, $rule_data) {
         $file = $this->getFile($attribute);
         if ($file == []) {
-            $this->setMsg_one('file_exists', $attribute);
+            $this->set_error_message('file_exists', $attribute);
             return false;
         }
         $type           = explode('/', $file['type'])[1];
@@ -851,44 +845,44 @@ class Validator {
             }
         }
         if (!$match) {
-            $this->setMsg_two('file_type_in', $attribute, $rule_data);
+            $this->set_error_message('file_type_in', $attribute, $rule_data);
             return false;
         }
         return true;
     }
 
-    private function check_file_max($attribute, $rule_data) {
+    protected function check_file_max($attribute, $rule_data) {
         $file = $this->getFile($attribute);
         if ($file == []) {
-            $this->setMsg_one('file_exists', $attribute);
+            $this->set_error_message('file_exists', $attribute);
             return false;
         }
         $size = bcdiv($file['size'], 1048576, $this->scale);
         if ($size > floatval($rule_data)) {
-            $this->setMsg_two('file_max', $attribute, $rule_data);
+            $this->set_error_message('file_max', $attribute, $rule_data);
             return false;
         }
         return true;
     }
 
-    private function check_file_min($attribute, $rule_data) {
+    protected function check_file_min($attribute, $rule_data) {
         $file = $this->getFile($attribute);
         if ($file == []) {
-            $this->setMsg_one('file_exists', $attribute);
+            $this->set_error_message('file_exists', $attribute);
             return false;
         }
         $size = bcdiv($file['size'], 1048576, $this->scale);
         if ($size < floatval($rule_data)) {
-            $this->setMsg_two('file_min', $attribute, $rule_data);
+            $this->set_error_message('file_min', $attribute, $rule_data);
             return false;
         }
         return true;
     }
 
-    private function check_file_size_between($attribute, $rule_data) {
+    protected function check_file_size_between($attribute, $rule_data) {
         $file = $this->getFile($attribute);
         if ($file == []) {
-            $this->setMsg_one('file_exists', $attribute);
+            $this->set_error_message('file_exists', $attribute);
             return false;
         }
 
@@ -906,13 +900,13 @@ class Validator {
 
         $size = bcdiv($file['size'], 1048576, $this->scale);
         if ($size < $v1 || $size > $v2) {
-            $this->setMsg_three('file_size_between', $attribute, $v1, $v2);
+            $this->set_error_message('file_size_between', $attribute, $v1, $v2);
             return false;
         }
         return true;
     }
 
-    private function toType_str_array($attribute, $value, $type) {
+    protected function toType_str_array($attribute, $value, $type) {
         if (!isset($this->array_str[$attribute])) {
             $rule_result = $this->check_array_str($attribute, $value);
             if (!$rule_result) {
@@ -942,7 +936,7 @@ class Validator {
         return true;
     }
 
-    private function toType_scale($attribute, $value, $scale) {
+    protected function toType_scale($attribute, $value, $scale) {
         if (!isset($this->float[$attribute])) {
             if (!$this->check_float_str($attribute, $value)) {
                 return false;

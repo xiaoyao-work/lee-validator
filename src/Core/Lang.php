@@ -18,7 +18,7 @@ class Lang {
     }
 
     private static function initLang($lang) {
-        $lang_path = realpath('../Lang/');
+        $lang_path = dirname(__DIR__) . '/Lang/';
         $default_lang = require($lang_path . strtolower(self::$default) . '.php');
         if (is_array($lang)) {
             self::$lang = array_merge($default_lang, $lang);
