@@ -51,11 +51,11 @@ Via Composer
 use Lee\Validator;
 
 $data = $_GET;
-Validator::make($data, [
+$validator = Validator::make($data, [
     "id" => "present|alpha_num|length:32", // 校验id字段必传，且由数字字母组成，长度为32
 ]);
-if (Validator::has_fails()) {
-    echo Validator::error_msg(); // 校验不通过，打印提示信息(默认使用语言包中的文案)
+if ($validator->fails()) {
+    echo $validator->errors(); // 校验不通过，打印提示信息(默认使用语言包中的文案)
     exit;
 } else {
     echo "参数校验已经通过";
@@ -82,13 +82,13 @@ use Lee\Validator;
 
 $data = $_GET;
 
-Validator::make($data, [
+$validator = Validator::make($data, [
     "id" => "present|alpha_num|length:32",
 ],[
     "id.length" => "id不合法",
 ]);
-if (Validator::has_fails()) {
-    echo Validator::error_msg();
+if ($validator->fails()) {
+    echo $validator->errors();
 } else {
     echo "参数校验已经通过";
 }
@@ -108,9 +108,9 @@ if (Validator::has_fails()) {
  * 第三个参数是个性化文案
      * id.length表示针对字段id的length规则，如果校验不通过，文案采用用户制定的"id不合法"
 
-\#10 has_fails()方法：判断参数校验是否存在错误(即参数校验是否未通过)，true表示未通过，false表示通过
+\#10 fails()方法：判断参数校验是否存在错误(即参数校验是否未通过)，true表示未通过，false表示通过
 
-\#11 error_msg()方法：显示当然规则的提示文档(仅在校验未通过时使用)
+\#11 errors()方法：显示当然规则的提示文档(仅在校验未通过时使用)
 
 ---
 ## 校验优先级
@@ -354,17 +354,17 @@ if (Validator::has_fails()) {
 
 　　基于以上或更多的场景，往往我们希望在参数校验完毕后，转换变量类型，得到我们想要的数组。那么 to_type 就由此而来！
 
-　　Validator::data() 方法返回处理后的参数数组！
+$validator->data() 方法返回处理后的参数数组！
 　　
 　　
 ``` php
-Validator::make($data, [
+$validator = Validator::make($data, [
     "money" => "float_str|to_type:scale:2",
 ]);
-if (Validator::has_fails()) {
-    echo Validator::error_msg();
+if ($validator->fails()) {
+    echo $validator->errors();
 } else {
-    var_dump(Validator::data());
+    var_dump($validator->data());
 }
 ```
 
@@ -394,7 +394,7 @@ array和object使用强制转换，比如：(array) $v;
 
 ---
 ## 自定义错误消息
-如果有需要的话，你也可以自定义错误的验证消息来取代默认的验证消息。有几种方法可以来自定义指定的消息。首先，你需要先通过传递三个参数到 Validator::make 方法来自定义验证消息：
+如果有需要的话，你也可以自定义错误的验证消息来取代默认的验证消息。有几种方法可以来自定义指定的消息。首先，你需要先通过传递三个参数到 $validator = Validator::make 方法来自定义验证消息：
 ``` php
 $messages = [
     'required' => '{attribute} 的字段是必要的。',
