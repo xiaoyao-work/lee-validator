@@ -19,6 +19,7 @@ class Validator {
         self::check();
         self::toType();
         self::toAlias();
+        return self::$validator;
     }
 
     /**
